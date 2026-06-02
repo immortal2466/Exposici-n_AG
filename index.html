@@ -1,0 +1,1455 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Movimiento Armónico Amortiguado — EDO</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=JetBrains+Mono:wght@300;400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['\\(','\\)']],
+    displayMath: [['\\[','\\]']],
+    tags: 'none'
+  },
+  options: { skipHtmlTags: ['script','noscript','style','textarea','pre'] },
+  startup: { typeset: true }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-chtml.min.js" crossorigin="anonymous"></script>
+<style>
+:root {
+  --bg:#080a0e; --surface:#0f1219; --surface2:#161b25;
+  --border:rgba(255,255,255,0.06); --text:#eceae3; --muted:#636878; --dim:#3a3e4a;
+  --blue:#4f9cf8; --coral:#f07a5a; --teal:#35d4a0; --gold:#e8c96a; --violet:#b07fff;
+  --mono:'JetBrains Mono',monospace; --serif:'Playfair Display',serif; --sans:'DM Sans',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans);}
+
+body::before{content:'';position:fixed;inset:0;z-index:1000;pointer-events:none;opacity:.025;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+
+/* ── SLIDE ENGINE ── */
+.deck{width:100vw;height:100vh;position:relative;}
+.slide{position:absolute;inset:0;display:flex;flex-direction:column;opacity:0;pointer-events:none;
+  transition:opacity .45s ease,transform .45s ease;transform:translateY(18px);overflow-y:auto;overflow-x:hidden;}
+.slide.active{opacity:1;pointer-events:all;transform:translateY(0);}
+.slide.out{opacity:0;transform:translateY(-18px);}
+
+/* ── NAV ── */
+.nav{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);display:flex;align-items:center;
+  gap:12px;z-index:500;background:rgba(15,18,25,.88);border:1px solid var(--border);
+  border-radius:999px;padding:9px 18px;backdrop-filter:blur(12px);}
+.nav button{font-family:var(--mono);font-size:11px;background:none;border:none;color:var(--muted);
+  cursor:pointer;padding:4px 12px;border-radius:999px;transition:all .2s;letter-spacing:.05em;}
+.nav button:hover{color:var(--text);background:rgba(255,255,255,.06);}
+.nav .counter{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.1em;min-width:52px;text-align:center;}
+.nav .section-label{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.08em;
+  border-left:1px solid var(--border);padding-left:12px;}
+
+.dots{position:fixed;right:24px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:7px;z-index:500;}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--dim);cursor:pointer;transition:all .3s;}
+.dot.active{background:var(--text);transform:scale(1.5);}
+.dot.section-break{margin-top:8px;}
+
+/* ── SHARED LAYOUT ── */
+.slide-label{font-family:var(--mono);font-size:10px;letter-spacing:.25em;color:var(--muted);
+  text-transform:uppercase;margin-bottom:28px;}
+.slide-pad{padding:44px 72px 56px;}
+.eq-box{background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--blue);
+  border-radius:8px;padding:14px 18px;font-family:var(--mono);font-size:12.5px;line-height:2.1;color:var(--text);}
+.eq-box .c{color:var(--muted);font-size:11px;}
+.eq-box .b{color:var(--blue);} .eq-box .r{color:var(--coral);} .eq-box .g{color:var(--teal);} .eq-box .v{color:var(--violet);} .eq-box .gold{color:var(--gold);}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start;}
+.h2{font-family:var(--serif);font-size:clamp(22px,3vw,38px);font-weight:700;line-height:1.12;margin-bottom:16px;}
+.body-p{font-size:13.5px;color:var(--muted);line-height:1.8;font-weight:300;margin-bottom:12px;}
+.anim-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;}
+.anim-lbl{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:7px;letter-spacing:.1em;}
+.anim-wrap canvas{width:100%;display:block;border-radius:6px;}
+.anim-tick{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:5px;text-align:right;}
+
+.sol-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:10px;}
+.sol-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;margin-bottom:8px;}
+.sol-eq{font-family:var(--mono);font-size:13px;line-height:1.9;color:var(--text);}
+
+.ex-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 14px;margin-bottom:9px;}
+.ex-num{font-family:var(--mono);font-size:10px;letter-spacing:.15em;color:var(--muted);margin-bottom:4px;}
+.ex-title{font-size:13px;font-weight:500;margin-bottom:3px;}
+.ex-desc{font-size:12px;color:var(--muted);line-height:1.5;font-weight:300;}
+.ex-params{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;}
+.pchip{font-family:var(--mono);font-size:10px;background:rgba(255,255,255,.04);border:1px solid var(--border);
+  border-radius:4px;padding:2px 7px;color:var(--dim);}
+
+.case-hdr{display:grid;grid-template-columns:auto 1fr auto;align-items:start;gap:18px;
+  margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--border);}
+.cbadge{font-family:var(--mono);font-size:11px;padding:5px 13px;border-radius:6px;letter-spacing:.1em;font-weight:600;}
+.bd-b{background:rgba(79,156,248,.12);color:var(--blue);}
+.bd-r{background:rgba(240,122,90,.12);color:var(--coral);}
+.bd-g{background:rgba(53,212,160,.12);color:var(--teal);}
+.bd-v{background:rgba(176,127,255,.12);color:var(--violet);}
+.lam-disp{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;line-height:1.9;}
+
+/* portada */
+.cover-bg{position:absolute;inset:0;background-image:
+  linear-gradient(rgba(79,156,248,.04) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(79,156,248,.04) 1px,transparent 1px);background-size:58px 58px;}
+.cover-glow{position:absolute;width:640px;height:640px;border-radius:50%;
+  background:radial-gradient(circle,rgba(79,156,248,.08) 0%,transparent 70%);
+  top:50%;left:50%;transform:translate(-50%,-50%);}
+.cover-content{position:relative;text-align:center;padding:40px;}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--blue);
+  text-transform:uppercase;margin-bottom:28px;opacity:0;animation:fadeUp .6s .3s forwards;}
+.cover-h1{font-family:var(--serif);font-size:clamp(44px,7vw,84px);font-weight:900;
+  line-height:1.0;letter-spacing:-.02em;margin-bottom:22px;opacity:0;animation:fadeUp .7s .5s forwards;}
+.cover-h1 em{font-style:italic;color:var(--blue);}
+.cover-sub{font-size:15px;font-weight:300;color:var(--muted);line-height:1.7;max-width:500px;
+  margin:0 auto 32px;opacity:0;animation:fadeUp .7s .7s forwards;}
+.cover-tags{display:flex;gap:9px;justify-content:center;flex-wrap:wrap;opacity:0;animation:fadeUp .7s .9s forwards;}
+.ctag{font-family:var(--mono);font-size:11px;border:1px solid var(--border);border-radius:4px;
+  padding:5px 12px;color:var(--muted);letter-spacing:.08em;}
+
+/* compare grid */
+.cmp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.cmp-col{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 14px;}
+.cmp-head{display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);}
+.cmp-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:10px;font-weight:600;}
+.cmp-title{font-size:13px;font-weight:500;}
+.cmp-row{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.cmp-row:last-child{border-bottom:none;}
+.cmp-key{color:var(--muted);font-weight:300;}
+.cmp-val{font-family:var(--mono);font-size:11px;}
+.cmp-v .cmp-num{background:rgba(176,127,255,.15);color:var(--violet);}
+.cmp-b .cmp-num{background:rgba(79,156,248,.15);color:var(--blue);}
+.cmp-r .cmp-num{background:rgba(240,122,90,.15);color:var(--coral);}
+.cmp-g .cmp-num{background:rgba(53,212,160,.15);color:var(--teal);}
+.cmp-v .cmp-val{color:var(--violet);} .cmp-b .cmp-val{color:var(--blue);}
+.cmp-r .cmp-val{color:var(--coral);} .cmp-g .cmp-val{color:var(--teal);}
+.mini-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px;}
+.mini-box{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px;}
+.mini-box canvas{width:100%;display:block;border-radius:4px;}
+.mini-lbl{font-family:var(--mono);font-size:10px;text-align:center;margin-top:5px;}
+
+/* section divider */
+.sec-div{justify-content:center;align-items:center;}
+.sec-div .sd-inner{text-align:center;position:relative;z-index:1;}
+.sec-num{font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--muted);margin-bottom:20px;}
+.sec-title{font-family:var(--serif);font-size:clamp(36px,6vw,68px);font-weight:900;line-height:1.05;margin-bottom:18px;}
+.sec-sub{font-size:14px;color:var(--muted);font-weight:300;max-width:440px;margin:0 auto;}
+
+/* spring animation canvas */
+.spring-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;
+  display:flex;flex-direction:column;align-items:center;}
+.spring-wrap canvas{display:block;border-radius:6px;background:var(--surface2);}
+
+/* final */
+.final-bg{position:absolute;inset:0;background-image:
+  linear-gradient(rgba(53,212,160,.03) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(53,212,160,.03) 1px,transparent 1px);background-size:50px 50px;}
+.final-content{position:relative;text-align:center;padding:60px;max-width:720px;}
+.final-h2{font-family:var(--serif);font-size:clamp(28px,4.5vw,54px);font-weight:900;line-height:1.1;margin-bottom:28px;}
+.sum-row{display:flex;gap:11px;justify-content:center;flex-wrap:wrap;margin-bottom:32px;}
+.sum-chip{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);
+  border-radius:8px;padding:8px 13px;font-size:13px;}
+.chip-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.formula-box{font-family:var(--mono);font-size:13px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:10px;padding:18px 26px;line-height:2;color:var(--muted);display:inline-block;}
+.formula-box strong{color:var(--text);}
+
+/* three-case spring grid */
+.spring-trio{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.spring-case{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;align-items:center;}
+.spring-case canvas{display:block;border-radius:6px;background:var(--surface2);}
+.spring-case-lbl{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.1em;margin-bottom:7px;align-self:flex-start;}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+::-webkit-scrollbar{display:none;}
+
+/* ── MathJax overrides ── */
+mjx-container { color: inherit; }
+mjx-container svg { overflow: visible; }
+.eq-box mjx-container, .sol-eq mjx-container, .lam-disp mjx-container,
+.formula-box mjx-container, .final-h2 mjx-container {
+  display: inline-block;
+  vertical-align: middle;
+}
+.eq-line { line-height: 2.6; display: block; }
+.eq-line-sm { line-height: 2.2; display: block; font-size: 0.95em; }
+/* color helpers for MathJax via CSS custom props passed via span wrappers */
+.mj-blue  mjx-container { color: var(--blue); }
+.mj-coral mjx-container { color: var(--coral); }
+.mj-teal  mjx-container { color: var(--teal); }
+.mj-gold  mjx-container { color: var(--gold); }
+.mj-violet mjx-container { color: var(--violet); }
+.mj-muted mjx-container { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- ══════════════════════════════════════════════
+     S1 · PORTADA
+══════════════════════════════════════════════ -->
+<div class="slide active" id="s1" style="justify-content:center;align-items:center;">
+  <div class="cover-bg"></div><div class="cover-glow"></div>
+  <div class="cover-content">
+    <div class="eyebrow">Aplicaciones de Ecuaciones Diferenciales Ordinarias</div>
+    <h1 class="cover-h1">Oscilaciones<br><em>y Amortiguamiento</em></h1>
+    <p class="cover-sub">Del movimiento armónico simple a los tres regímenes de amortiguamiento: deducción matemática completa y significado físico.</p>
+    <p class="cover-sub"> Alejandro Gutierrez.</p>
+    <div class="cover-tags">
+      <span class="ctag">MAS</span>
+      <span class="ctag">Subamortiguado</span>
+      <span class="ctag">Sobreamortiguado</span>
+      <span class="ctag">Amortiguamiento Crítico</span>
+      <span class="ctag">EDO Lineal Homogénea</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     S2 · SECCIÓN 1 — MAS
+══════════════════════════════════════════════ -->
+<div class="slide sec-div" id="s2">
+  <div class="cover-bg" style="background-image:linear-gradient(rgba(176,127,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(176,127,255,.04) 1px,transparent 1px);background-size:58px 58px;"></div>
+  <div style="position:absolute;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(176,127,255,.08) 0%,transparent 70%);top:50%;left:50%;transform:translate(-50%,-50%);"></div>
+  <div class="sd-inner">
+    <div class="sec-num">PARTE 01 / 03</div>
+    <div class="sec-title" style="color:var(--violet)">Movimiento<br>Armónico Simple</div>
+    <div class="sec-sub">Sistema ideal sin fricción: la panacea de la física. Oscilación eterna entre energía cinética y potencial.</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     S3 · MAS — DEDUCCIÓN FÍSICA + DIAGRAMA
+══════════════════════════════════════════════ -->
+<div class="slide slide-pad" id="s3_new">
+  <div class="slide-label">01.1 — Deducción física del sistema masa‑resorte</div>
+  <div class="two-col">
+    <div>
+      <h2 class="h2">El sistema<br>masa‑resorte<br><em style="color:var(--violet)">sin fricción</em></h2>
+      <p class="body-p">Solo dos elementos: la masa <strong>m</strong> y el resorte <strong>k</strong>. El resorte genera una <em>fuerza de restitución</em> que siempre apunta hacia el equilibrio.</p>
+      <div class="eq-box" style="border-left-color:var(--violet);margin-bottom:12px;font-family:var(--sans);font-size:13.5px;line-height:1.5;">
+        <span class="c">// Segunda Ley de Newton:</span>
+        <span class="eq-line">\( \displaystyle\sum F = ma = m\,\frac{d^2x}{dt^2} \)</span>
+        <span class="c">// Ley de Hooke (fuerza restitutiva):</span>
+        <span class="eq-line">\( F_r = -kx \)</span>
+        <span class="c">// Combinando:</span>
+        <span class="eq-line">\( m\,\frac{d^2x}{dt^2} = -kx \)</span>
+        <span class="eq-line">\( m\,\frac{d^2x}{dt^2} + kx = 0 \)</span>
+      </div>
+      <div class="eq-box" style="border-left-color:var(--gold);font-family:var(--sans);font-size:13.5px;line-height:1.5;">
+        <span class="c">// Definición frecuencia natural:</span>
+        <span class="eq-line">\( \omega^2 = \dfrac{k}{m} \quad\longrightarrow\quad \omega = \sqrt{\dfrac{k}{m}} \)</span>
+        <span class="c">// Ecuación canónica del MAS:</span>
+        <span class="eq-line mj-gold">\( \ddot{x} + \omega^2 x = 0 \)</span>
+      </div>
+      <div class="sol-card" style="margin-top:10px;">
+        <div class="sol-lbl">Convención de signo</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.7;font-weight:300">
+          <strong style="color:var(--text)">x &gt; 0</strong> → resorte estirado → F<sub>r</sub> apunta hacia la pared (−x)<br>
+          <strong style="color:var(--text)">x &lt; 0</strong> → resorte comprimido → F<sub>r</sub> apunta lejos de la pared (+x)<br>
+          F<sub>r</sub> siempre apunta al equilibrio: de ahí el signo negativo.
+        </div>
+      </div>
+      <div style="margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;">
+        <div class="sol-lbl">Leyenda</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
+          <div style="display:flex;align-items:center;gap:10px;font-size:12px;">
+            <span style="display:inline-block;width:24px;height:3px;background:#b07fff;border-radius:2px;flex-shrink:0;"></span>
+            <span style="color:var(--muted)">F<sub>r</sub> = −kx &nbsp;(fuerza del resorte)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:12px;">
+            <span style="display:inline-block;width:24px;height:3px;background:#e8c96a;border-radius:2px;flex-shrink:0;"></span>
+            <span style="color:var(--muted)">x(t) desplazamiento desde equilibrio</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:12px;">
+            <span style="display:inline-block;width:24px;height:3px;background:rgba(255,255,255,0.7);border-radius:2px;flex-shrink:0;"></span>
+            <span style="color:var(--muted)">F<sub>ext</sub> &nbsp;(fuerza que provoca el estiramiento)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <!-- DCL ESTÁTICO MAS — versión detallada -->
+      <div class="anim-wrap" style="padding:16px;margin-bottom:12px;">
+        <div class="anim-lbl">DCL ESTÁTICO — posición x &gt; 0</div>
+        <svg viewBox="0 0 380 160" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">
+          <defs>
+            <marker id="arr-violet" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="#b07fff"/>
+            </marker>
+            <marker id="arr-gold" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="#e8c96a"/>
+            </marker>
+            <marker id="arr-white" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="rgba(255,255,255,0.85)"/>
+            </marker>
+          </defs>
+          <!-- Eje x -->
+          <line x1="30" y1="100" x2="350" y2="100" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+          <text x="355" y="104" fill="rgba(255,255,255,0.3)" font-size="11" font-family="JetBrains Mono,monospace">+x</text>
+          <!-- Eje y (vertical, referencia) -->
+          <line x1="110" y1="30" x2="110" y2="140" stroke="rgba(255,255,255,0.08)" stroke-width="1" stroke-dasharray="4,4"/>
+          <text x="107" y="26" fill="rgba(255,255,255,0.25)" font-size="10" font-family="JetBrains Mono,monospace" text-anchor="middle">x=0</text>
+          <!-- MASA bloque -->
+          <rect x="180" y="72" width="64" height="56" rx="5" fill="rgba(176,127,255,0.12)" stroke="#b07fff" stroke-width="2"/>
+          <text x="212" y="105" fill="#b07fff" font-size="14" font-weight="bold" font-family="JetBrains Mono,monospace" text-anchor="middle">m</text>
+          <!-- Flecha Fr -->
+          <line x1="178" y1="93" x2="108" y2="93" stroke="#b07fff" stroke-width="2.5" marker-end="url(#arr-violet)"/>
+          <text x="143" y="84" fill="#b07fff" font-size="11" font-family="JetBrains Mono,monospace" text-anchor="middle">Fr = −kx</text>
+          <!-- Flecha x desplazamiento -->
+          <line x1="110" y1="128" x2="180" y2="128" stroke="#e8c96a" stroke-width="1.5" marker-end="url(#arr-gold)"/>
+          <text x="145" y="142" fill="#e8c96a" font-size="10" font-family="JetBrains Mono,monospace" text-anchor="middle">x &gt; 0</text>
+          <!-- Etiqueta ma -->
+          <text x="195" y="58" fill="rgba(255,255,255,0.55)" font-size="10" font-family="JetBrains Mono,monospace" text-anchor="middle">−kx</text>
+          <text x="220" y="58" fill="rgba(255,255,255,0.35)" font-size="10" font-family="JetBrains Mono,monospace" text-anchor="middle">=  mẍ</text>
+          <text x="262" y="58" fill="rgba(255,255,255,0.55)" font-size="10" font-family="JetBrains Mono,monospace" text-anchor="middle"></text>
+          <!-- F_ext → +x (fuerza que provocó el estiramiento) -->
+          <line x1="246" y1="93" x2="316" y2="93" stroke="rgba(255,255,255,0.85)" stroke-width="2.5" marker-end="url(#arr-white)"/>
+          <text x="281" y="84" fill="rgba(255,255,255,0.8)" font-size="11" font-family="JetBrains Mono,monospace" text-anchor="middle">F_ext</text>
+          <!-- Suma de fuerzas -->
+          <text x="30" y="10" fill="rgba(255,255,255,0.35)" font-size="10" font-family="JetBrains Mono,monospace">ΣFx = ma  →  F_ext − kx = mẍ</text>
+        </svg>
+      </div>
+      <!-- ANIMACIÓN DEL SISTEMA -->
+      <div class="anim-wrap">
+        <div class="anim-lbl">Sistema masa‑resorte</div>
+        <canvas id="cdcl_mas" height="120" style="width:100%;display:block;border-radius:6px;background:var(--surface2);"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     S4 · MAS — TAXONOMÍA DE LA EDO
+══════════════════════════════════════════════ -->
+<div class="slide slide-pad" id="s4_new">
+  <div class="slide-label">01.2 — Clasificación de la ecuación diferencial</div>
+  <div class="two-col">
+    <div>
+      <h2 class="h2">¿Qué tipo de<br>ecuación es esta?</h2>
+      <p class="body-p">Al plantear el MAS obtenemos:</p>
+      <div class="eq-box" style="border-left-color:var(--violet);margin-bottom:12px;font-family:var(--sans);font-size:15px;text-align:center;padding:18px;">
+        \( m\,\ddot{x} + kx = 0 \)
+      </div>
+      <p class="body-p" style="margin-top:10px;">Esta ecuación se clasifica como Ecuación Diferencial Ordinaria Lineal Homogénea con Coeficientes Constantes, expliquemos paso a paso:</p>
+      <div class="sol-card" style="border-left:3px solid var(--violet)">
+        <div class="sol-lbl">Clasificación completa</div>
+        <div class="sol-eq" style="font-size:11.5px;line-height:2;">
+          <span style="color:var(--blue)">Ecuación</span> — contiene "=" con dos miembros<br>
+          <span style="color:var(--blue)">Diferencial</span> — contiene derivadas (d²x/dt²)<br>
+          <span style="color:var(--blue)">Ordinaria</span> — derivadas de una sola variable (t)<br>
+          <span style="color:var(--blue)">Lineal</span> — todas las derivadas con grado 1<br>
+          <span style="color:var(--blue)">Homogénea</span> — cumple L[x] = 0<br>
+          <span style="color:var(--blue)">Coef. Constantes</span> — m y k son números fijos
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="sol-card" style="border-left:3px solid var(--gold)">
+        <div class="sol-lbl">Operador Lineal</div>
+        <div class="sol-eq" style="font-size:12px;line-height:2;">
+          <span class="c">// Si L[x] = 0 → homogénea</span><br>
+          <span class="c">// Si L[x] ≠ 0 → no homogénea</span><br><br>
+          El orden es <span style="color:var(--gold)">2</span> (máxima derivada)<br>
+          El grado es <span style="color:var(--gold)">1</span> (potencia de esa derivada)
+        </div>
+      </div>
+      <div class="sol-card">
+        <div class="sol-lbl">¿Por qué importa clasificar?</div>
+        <div style="font-size:12.5px;color:var(--muted);line-height:1.75;font-weight:300;">
+          La clasificación determina el <strong style="color:var(--text)">método de solución</strong>. Para EDO Lineal Homogénea con Coeficientes Constantes usamos el <em>ansatz</em> exponencial \(x(t) = e^{rt}\), que lleva a la ecuación característica.
+        </div>
+      </div>
+      <div class="eq-box" style="border-left-color:var(--teal);margin-top:8px;font-family:var(--sans);font-size:14px;">
+        <span class="c">// Operador diferencial explícito:</span><br>
+        <span style="display:block;text-align:center;margin-top:6px;">
+          \( \mathcal{L}[x] = m\,x'' + k\,x \)
+        </span>
+        <span class="c">// \(\mathcal{L}[x] = 0\) → Ecuación homogénea ✓</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     S5 · MAS — SOLUCIÓN COMPLETA
+══════════════════════════════════════════════ -->
+<div class="slide slide-pad" id="s5">
+  <div class="slide-label">01.3 — Solución: Ansatz exponencial y fórmula de Euler</div>
+  <div class="two-col">
+    <div>
+      <h2 class="h2">Resolviendo la<br>ecuación del MAS</h2>
+      <div class="sol-card" style="border-left:3px solid var(--violet)">
+        <div class="sol-lbl">Paso 1 — Ansatz (del alemán "ansetzen" que significa "Aplicar")</div>
+        <div class="sol-eq" style="font-size:12px;line-height:2.1;">
+          Proponemos: \( x(t) = e^{rt} \)<br>
+          \( x'(t) = r\,e^{rt} \)<br>
+          \( x''(t) = r^2 e^{rt} \)<br>
+          <span class="c">// Sustituyendo en \(m\ddot{x} + kx = 0\):</span><br>
+          \( m r^2 e^{rt} + k e^{rt} = 0 \)<br>
+          \( e^{rt}\!\left(r^2 + \dfrac{k}{m}\right) = 0 \)
+        </div>
+      </div>
+      <div class="sol-card" style="border-left:3px solid var(--blue)">
+        <div class="sol-lbl">Paso 2 — Ecuación Característica</div>
+        <div class="sol-eq" style="font-size:12px;line-height:2.1;">
+          <span class="c">// \(e^{rt} \neq 0\) (límite \(t\to-\infty\) físicamente imposible)</span><br>
+          \( r^2 + \omega^2 = 0 \)<br>
+          \( r^2 = -\omega^2 \)<br>
+          \( r = \pm\,\omega i \) &nbsp;<span class="c">// raíces imaginarias puras</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="sol-card" style="border-left:3px solid var(--gold)">
+        <div class="sol-lbl">Paso 3 — Fórmula de Euler</div>
+        <div class="sol-eq" style="font-size:12px;line-height:2.1;">
+          \( e^{i\theta} = \cos\theta + i\sin\theta \)<br>
+          \( \therefore\; e^{i\omega t} = \cos(\omega t) + i\sin(\omega t) \)<br>
+          <span class="c">// Solución general:</span><br>
+          \( x(t) = C_1\cos(\omega t) + C_2\sin(\omega t) \)
+        </div>
+      </div>
+      <div class="sol-card" style="border-left:3px solid var(--teal)">
+        <div class="sol-lbl">Paso 4 — Forma Amplitud‑Fase</div>
+        <div class="sol-eq" style="font-size:12px;line-height:2.1;">
+          <span class="c">// Por identidad trigonométrica:</span><br>
+          \( A\cos(\omega t+\Phi) = A\cos\Phi\cos(\omega t) - A\sin\Phi\sin(\omega t) \)<br>
+          \( = C_1\cos(\omega t) + C_2\sin(\omega t) \)<br>
+          <span class="mj-teal">\( x(t) = A\cos(\omega t + \Phi) \)</span>
+        </div>
+      </div>
+      <div class="anim-wrap" style="margin-top:10px;">
+        <div class="anim-lbl">GRÁFICA — x(t) = A·cos(ωt + Φ)</div>
+        <canvas id="cmas" height="110"></canvas>
+        <div class="anim-tick" id="tkmas">t = 0.00 s</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     S6 · SECCIÓN 2 — AMORTIGUADO
+══════════════════════════════════════════════ -->
+<div class="slide sec-div" id="s6">
+  <div class="cover-bg" style="background-image:linear-gradient(rgba(79,156,248,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(79,156,248,.04) 1px,transparent 1px);background-size:58px 58px;"></div>
+  <div style="position:absolute;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(79,156,248,.08) 0%,transparent 70%);top:50%;left:50%;transform:translate(-50%,-50%);"></div>
+  <div class="sd-inner">
+    <div class="sec-num">PARTE 02 / 03</div>
+    <div class="sec-title" style="color:var(--blue)">Movimiento<br>Amortiguado</div>
+    <div class="sec-sub">Se agrega la fricción: el amortiguador <strong>β</strong> disipa energía en cada ciclo. Aparecen tres regímenes según el discriminante.</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     S7 · AMORT — DEDUCCIÓN + DCL
+══════════════════════════════════════════════ -->
+<div class="slide slide-pad" id="s7">
+  <div class="slide-label">02.1 — Deducción y Diagrama de Cuerpo Libre — Sistema masa‑resorte‑amortiguador</div>
+  <div class="two-col">
+    <div>
+      <h2 class="h2">Sistema<br>masa‑resorte‑<br><em style="color:var(--blue)">amortiguador</em></h2>
+      <p class="body-p">La fuerza de amortiguamiento es proporcional a la velocidad y se opone al movimiento. Al agregarla, aparece una <strong>segunda fuerza</strong> actuando simultáneamente sobre la masa.</p>
+      <div class="eq-box" style="border-left-color:var(--coral);margin-bottom:10px;font-family:var(--sans);font-size:13.5px;line-height:1.5;">
+        <span class="c">// Fuerzas activas en eje x:</span>
+        <span class="eq-line" style="color:var(--teal)">\( F_r = -k\,x \)</span>
+        <span class="eq-line" style="color:var(--coral)">\( F_a = -\beta\,\dot{x} \)</span>
+        <span class="c">// Segunda Ley: ΣF = ma</span>
+        <span class="eq-line">\( -kx - \beta\dot{x} = m\ddot{x} \)</span>
+        <span class="eq-line mj-blue">\( m\ddot{x} + \beta\dot{x} + kx = 0 \)</span>
+      </div>
+      <div class="eq-box" style="border-left-color:var(--gold);margin-bottom:10px;font-family:var(--sans);font-size:13.5px;line-height:1.5;">
+        <span class="c">// Por convención: β = 2λm → ec. característica:</span>
+        <span class="eq-line mj-gold">\( r^2 + 2\lambda r + \omega^2 = 0 \)</span>
+        <span class="c">// Discriminante:</span>
+        <span class="eq-line">\( \Delta = \lambda^2 - \omega^2 = \left(\dfrac{\beta}{2m}\right)^{\!2} - \dfrac{k}{m} \)</span>
+      </div>
+      <div class="sol-card" style="margin-bottom:10px;">
+        <div class="sol-lbl">MAS vs Amortiguado</div>
+        <div style="font-size:12.5px;color:var(--muted);line-height:1.7;font-weight:300">
+          MAS: solo F<sub>r</sub> → oscilación eterna<br>
+          Amortiguado: F<sub>r</sub> + F<sub>a</sub> → energía siempre se disipa<br>
+          F<sub>a</sub> convierte energía cinética en calor, no la almacena.
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;text-align:center;">
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px 7px;">
+          <div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--blue);margin-bottom:4px;">Δ &lt; 0</div>
+          <div style="font-size:11px;color:var(--muted)">Sub-<br>amortiguado</div>
+        </div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px 7px;">
+          <div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--teal);margin-bottom:4px;">Δ = 0</div>
+          <div style="font-size:11px;color:var(--muted)">Amort.<br>Crítico</div>
+        </div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px 7px;">
+          <div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--coral);margin-bottom:4px;">Δ &gt; 0</div>
+          <div style="font-size:11px;color:var(--muted)">Sobre-<br>amortiguado</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <!-- DCL ESTÁTICO AMORTIGUADO -->
+      <div class="anim-wrap" style="padding:14px;">
+        <div class="anim-lbl">DCL ESTÁTICO — x &gt; 0, ẋ &gt; 0 (alejándose del equilibrio)</div>
+        <svg viewBox="0 0 380 170" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">
+          <defs>
+            <marker id="arr-teal-s7" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="#35d4a0"/>
+            </marker>
+            <marker id="arr-coral-s7" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="#f07a5a"/>
+            </marker>
+            <marker id="arr-gold-s7" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="#e8c96a"/>
+            </marker>
+            <marker id="arr-white-s7" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="rgba(255,255,255,0.85)"/>
+            </marker>
+          </defs>
+          <!-- Eje x -->
+          <line x1="28" y1="105" x2="355" y2="105" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+          <text x="358" y="109" fill="rgba(255,255,255,0.3)" font-size="11" font-family="JetBrains Mono,monospace">+x</text>
+          <!-- Línea de equilibrio -->
+          <line x1="105" y1="35" x2="105" y2="148" stroke="rgba(255,255,255,0.1)" stroke-width="1" stroke-dasharray="4,4"/>
+          <text x="102" y="30" fill="rgba(255,255,255,0.25)" font-size="10" font-family="JetBrains Mono,monospace" text-anchor="middle">x=0</text>
+          <!-- MASA -->
+          <rect x="175" y="72" width="64" height="56" rx="5" fill="rgba(79,156,248,0.1)" stroke="#4f9cf8" stroke-width="2"/>
+          <text x="207" y="105" fill="#4f9cf8" font-size="14" font-weight="bold" font-family="JetBrains Mono,monospace" text-anchor="middle">m</text>
+          <!-- Fr: apunta hacia −x -->
+          <line x1="173" y1="88" x2="106" y2="88" stroke="#35d4a0" stroke-width="2.5" marker-end="url(#arr-teal-s7)"/>
+          <text x="139" y="80" fill="#35d4a0" font-size="10" font-family="JetBrains Mono,monospace" text-anchor="middle">Fr=−kx</text>
+          <!-- Fa: apunta hacia −x -->
+          <line x1="173" y1="120" x2="118" y2="120" stroke="#f07a5a" stroke-width="2.5" marker-end="url(#arr-coral-s7)"/>
+          <text x="145" y="135" fill="#f07a5a" font-size="10" font-family="JetBrains Mono,monospace" text-anchor="middle">Fa=−βẋ</text>
+          <!-- x desplazamiento -->
+          <line x1="105" y1="152" x2="175" y2="152" stroke="#e8c96a" stroke-width="1.5" marker-end="url(#arr-gold-s7)"/>
+          <text x="140" y="164" fill="#e8c96a" font-size="10" font-family="JetBrains Mono,monospace" text-anchor="middle">x &gt; 0</text>
+          <!-- ma label -->
+          <text x="187" y="62" fill="rgba(255,255,255,0.55)" font-size="10" font-family="JetBrains Mono,monospace" text-anchor="middle">−kx−βẋ</text>
+          <text x="220" y="62" fill="rgba(255,255,255,0.35)" font-size="10" font-family="JetBrains Mono,monospace" text-anchor="middle">=  mẍ</text>
+          <!-- F_ext → +x -->
+          <line x1="241" y1="100" x2="310" y2="100" stroke="rgba(255,255,255,0.85)" stroke-width="2.5" marker-end="url(#arr-white-s7)"/>
+          <text x="275" y="91" fill="rgba(255,255,255,0.8)" font-size="10" font-family="JetBrains Mono,monospace" text-anchor="middle">F_ext</text>
+          <!-- ΣF -->
+          <text x="120" y="10" fill="rgba(255,255,255,0.35)" font-size="10" font-family="JetBrains Mono,monospace">ΣFx = F_ext = ma  →   − kx − βẋ = mẍ</text>
+        </svg>
+      </div>
+      <!-- Leyenda -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 14px;">
+        <div class="sol-lbl">Leyenda</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
+          <div style="display:flex;align-items:center;gap:10px;font-size:12px;">
+            <span style="display:inline-block;width:24px;height:3px;background:#35d4a0;border-radius:2px;flex-shrink:0;"></span>
+            <span style="color:var(--muted)">F<sub>r</sub> = −kx &nbsp;(resorte → equilibrio)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:12px;">
+            <span style="display:inline-block;width:24px;height:3px;background:#f07a5a;border-radius:2px;flex-shrink:0;"></span>
+            <span style="color:var(--muted)">F<sub>a</sub> = −βẋ &nbsp;(amortiguador → opone velocidad)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:12px;">
+            <span style="display:inline-block;width:24px;height:3px;background:#e8c96a;border-radius:2px;flex-shrink:0;"></span>
+            <span style="color:var(--muted)">x(t) desplazamiento desde equilibrio</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:12px;">
+            <span style="display:inline-block;width:24px;height:3px;background:rgba(255,255,255,0.7);border-radius:2px;flex-shrink:0;"></span>
+            <span style="color:var(--muted)">F<sub>ext</sub> &nbsp;(fuerza que provoca el estiramiento)</span>
+          </div>
+        </div>
+      </div>
+      <!-- ANIMACIÓN DEL SISTEMA -->
+      <div class="spring-wrap">
+        <div class="anim-lbl" style="align-self:flex-start">Sistema masa‑resorte‑amortiguador</div>
+        <canvas id="cspring2" width="340" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     S8 · CASO I — SUBAMORTIGUADO
+══════════════════════════════════════════════ -->
+<div class="slide slide-pad" id="s8">
+  <div class="case-hdr">
+    <span class="cbadge bd-b">CASO I</span>
+    <div>
+      <div class="slide-label" style="margin-bottom:5px">Δ &lt; 0 &nbsp;|&nbsp; raíces complejas conjugadas</div>
+      <h2 class="h2" style="margin-bottom:0">Subamortiguado &mdash; Oscilación decreciente</h2>
+    </div>
+    <div class="lam-disp">\( r = \alpha \pm \beta i \)<br>\( \alpha = -\lambda < 0 \)<br>\( \beta = \sqrt{\omega^2-\lambda^2} \)</div>
+  </div>
+  <div class="two-col" style="gap:24px;align-items:start;">
+    <div>
+      <div class="sol-card" style="border-left:3px solid var(--blue)">
+        <div class="sol-lbl">Solución de la ecuación característica</div>
+        <div class="sol-eq" style="font-size:12px;line-height:2.1;">
+          \( r^2 + 2\lambda r + \omega^2 = 0 \)<br>
+          \( r = \dfrac{-2\lambda \pm \sqrt{4\lambda^2-4\omega^2}}{2} \)<br>
+          \( r = -\lambda \pm \sqrt{\lambda^2-\omega^2} \)<br>
+          <span class="c">// Si \(\lambda < \omega\) → Δ &lt; 0 → raíces complejas:</span><br>
+          \( r = -\lambda \pm i\sqrt{\omega^2-\lambda^2} = \alpha \pm \beta i \)
+        </div>
+      </div>
+      <div class="sol-card" style="border-left:3px solid var(--violet)">
+        <div class="sol-lbl">Solución general — Euler aplicado</div>
+        <div class="sol-eq" style="font-size:12px;line-height:2.1;">
+          \( x(t) = e^{\alpha t}\!\left[C_1\cos(\beta t) + C_2\sin(\beta t)\right] \)<br>
+          <span class="c">// Forma amplitud-fase:</span><br>
+          <span class="mj-blue">\( x(t) = A\,e^{-\lambda t}\cos(\beta t + \Phi) \)</span><br>
+          <span class="c">// \(e^{-\lambda t}\) es la envolvente amortiguadora</span>
+        </div>
+      </div>
+      <div class="anim-wrap">
+        <div class="anim-lbl">GRÁFICA — x(t) subamortiguado</div>
+        <canvas id="ca_sub" height="105"></canvas>
+        <div class="anim-tick" id="tk_sub">t = 0.00 s</div>
+      </div>
+    </div>
+    <div>
+      <div class="spring-case" style="border-color:rgba(79,156,248,.3);height:290px;">
+        <div class="spring-case-lbl">ANIMACIÓN FÍSICA — Subamortiguado</div>
+        <canvas id="csp_sub" width="300" height="260"></canvas>
+      </div>
+      <div class="ex-card" style="margin-top:10px;">
+        <div class="ex-num">EJEMPLO — Suspensión de automóvil</div>
+        <div class="ex-desc">Al pasar un tope rebota varias veces antes de estabilizarse.</div>
+        <div class="ex-params"><span class="pchip">m=300 kg</span><span class="pchip">β=1200 N·s/m</span><span class="pchip">k=20000 N/m</span><span class="pchip" style="color:var(--blue)">Δ&lt;0</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     S9 · CASO II — SOBREAMORTIGUADO
+══════════════════════════════════════════════ -->
+<div class="slide slide-pad" id="s9">
+  <div class="case-hdr">
+    <span class="cbadge bd-r">CASO II</span>
+    <div>
+      <div class="slide-label" style="margin-bottom:5px">Δ &gt; 0 &nbsp;|&nbsp; raíces reales distintas</div>
+      <h2 class="h2" style="margin-bottom:0">Sobreamortiguado &mdash; Retorno monótono lento</h2>
+    </div>
+    <div class="lam-disp">\( r_1 \neq r_2 < 0 \)<br>\( r = -\lambda \pm \sqrt{\lambda^2-\omega^2} \)<br>ambas reales negativas</div>
+  </div>
+  <div class="two-col" style="gap:24px;align-items:start;">
+    <div>
+      <div class="sol-card" style="border-left:3px solid var(--coral)">
+        <div class="sol-lbl">Solución de la ecuación característica</div>
+        <div class="sol-eq" style="font-size:12px;line-height:2.1;">
+          \( r^2 + 2\lambda r + \omega^2 = 0 \)<br>
+          \( r = -\lambda \pm \sqrt{\lambda^2-\omega^2} \)<br>
+          <span class="c">// λ &gt; ω → Δ &gt; 0 → dos raíces reales negativas:</span><br>
+          \( r_1 = -\lambda + \sqrt{\lambda^2-\omega^2} < 0 \)<br>
+          \( r_2 = -\lambda - \sqrt{\lambda^2-\omega^2} < 0 \)
+        </div>
+      </div>
+      <div class="sol-card" style="border-left:3px solid var(--violet)">
+        <div class="sol-lbl">Solución general</div>
+        <div class="sol-eq" style="font-size:12px;line-height:2.1;">
+          \( x(t) = C_1 e^{r_1 t} + C_2 e^{r_2 t} \)<br>
+          <span class="c">// \(C_1,\,C_2\) por condiciones iniciales:</span><br>
+          \( C_1 = \dfrac{v_0 - r_2 x_0}{r_1-r_2} \)<br>
+          \( C_2 = \dfrac{r_1 x_0 - v_0}{r_1-r_2} \)<br>
+          <span class="c">// Sin oscilación: suma de dos exponenciales decrecientes</span>
+        </div>
+      </div>
+      <div class="anim-wrap">
+        <div class="anim-lbl">GRÁFICA — x(t) sobreamortiguado</div>
+        <canvas id="ca_sobre" height="105"></canvas>
+        <div class="anim-tick" id="tk_sobre">t = 0.00 s</div>
+      </div>
+    </div>
+    <div>
+      <div class="spring-case" style="border-color:rgba(240,122,90,.3);height:290px;">
+        <div class="spring-case-lbl">ANIMACIÓN FÍSICA — Sobreamortiguado</div>
+        <canvas id="csp_sobre" width="300" height="260"></canvas>
+      </div>
+      <div class="ex-card" style="margin-top:10px;">
+        <div class="ex-num">EJEMPLO — Amortiguador hidráulico rígido</div>
+        <div class="ex-desc">El pistón regresa muy lentamente sin rebote. La alta viscosidad del fluido impide toda oscilación.</div>
+        <div class="ex-params"><span class="pchip">m=1 kg</span><span class="pchip">β=10 N·s/m</span><span class="pchip">k=9 N/m</span><span class="pchip" style="color:var(--coral)">Δ&gt;0</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     S10 · CASO III — CRÍTICO
+══════════════════════════════════════════════ -->
+<div class="slide slide-pad" id="s10">
+  <div class="case-hdr">
+    <span class="cbadge bd-g">CASO III</span>
+    <div>
+      <div class="slide-label" style="margin-bottom:5px">Δ = 0 &nbsp;|&nbsp; raíz real doble</div>
+      <h2 class="h2" style="margin-bottom:0">Amortiguamiento Crítico &mdash; Retorno óptimo</h2>
+    </div>
+    <div class="lam-disp">\( r_1 = r_2 = r \)<br>\( r = -\lambda \)<br>caso límite óptimo</div>
+  </div>
+  <div class="two-col" style="gap:24px;align-items:start;">
+    <div>
+      <div class="sol-card" style="border-left:3px solid var(--teal)">
+        <div class="sol-lbl">Solución de la ecuación característica</div>
+        <div class="sol-eq" style="font-size:12px;line-height:2.1;">
+          \( r^2 + 2\lambda r + \omega^2 = 0 \)<br>
+          <span class="c">// λ = ω → Δ = 0 → raíz doble:</span><br>
+          \( r = -\lambda \) &nbsp;(con multiplicidad 2)<br>
+          <span class="c">// Una sola raíz → necesitamos dos soluciones independientes</span>
+        </div>
+      </div>
+      <div class="sol-card" style="border-left:3px solid var(--violet)">
+        <div class="sol-lbl">Solución general — reducción de orden</div>
+        <div class="sol-eq" style="font-size:12px;line-height:2.1;">
+          <span class="c">// \(x_1 = e^{rt}\) → \(x_2 = t\,e^{rt}\) (por reducción de orden)</span><br>
+          \( x(t) = (C_1 + C_2\,t)\,e^{rt} \)<br>
+          <span class="c">// Con \(r = -\lambda\):</span><br>
+          <span class="mj-teal">\( x(t) = (C_1 + C_2\,t)\,e^{-\lambda t} \)</span><br>
+          <span class="c">// El factor \(t\) impide que decaiga trivialmente</span>
+        </div>
+      </div>
+      <div class="anim-wrap">
+        <div class="anim-lbl">GRÁFICA — x(t) críticamente amortiguado</div>
+        <canvas id="ca_crit" height="105"></canvas>
+        <div class="anim-tick" id="tk_crit">t = 0.00 s</div>
+      </div>
+    </div>
+    <div>
+      <div class="spring-case" style="border-color:rgba(53,212,160,.3);height:290px;">
+        <div class="spring-case-lbl">ANIMACIÓN FÍSICA — Amortiguamiento crítico</div>
+        <canvas id="csp_crit" width="300" height="260"></canvas>
+      </div>
+      <div class="ex-card" style="margin-top:10px;">
+        <div class="ex-num">EJEMPLO — Puerta automática ideal</div>
+        <div class="ex-desc">Se cierra exactamente sin rebotar en el menor tiempo posible. El diseño estándar de ingeniería.</div>
+        <div class="ex-params"><span class="pchip">m=1 kg</span><span class="pchip">β=6 N·s/m</span><span class="pchip">k=9 N/m</span><span class="pchip" style="color:var(--teal)">Δ=0</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     S11 · SECCIÓN 3 — COMPARACIÓN
+══════════════════════════════════════════════ -->
+<div class="slide sec-div" id="s11">
+  <div class="cover-bg" style="background-image:linear-gradient(rgba(232,201,106,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(232,201,106,.04) 1px,transparent 1px);background-size:58px 58px;"></div>
+  <div style="position:absolute;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(232,201,106,.07) 0%,transparent 70%);top:50%;left:50%;transform:translate(-50%,-50%);"></div>
+  <div class="sd-inner">
+    <div class="sec-num">PARTE 03 / 03</div>
+    <div class="sec-title" style="color:var(--gold)">Comparación<br>de Regímenes</div>
+    <div class="sec-sub">El discriminante Δ = λ² − ω² decide el destino del sistema.</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     S12 · COMPARACIÓN DE LOS TRES CASOS
+══════════════════════════════════════════════ -->
+<div class="slide slide-pad" id="s12">
+  <div class="slide-label">03.1 — Los cuatro comportamientos en perspectiva</div>
+  <h2 class="h2" style="margin-bottom:20px">El discriminante decide el destino del sistema</h2>
+  <div class="cmp-grid">
+    <div class="cmp-col cmp-v">
+      <div class="cmp-head"><div class="cmp-num">0</div><span class="cmp-title">MAS</span></div>
+      <div class="cmp-row"><span class="cmp-key">Discriminante</span><span class="cmp-val">β = 0</span></div>
+      <div class="cmp-row"><span class="cmp-key">Raíces r</span><span class="cmp-val">\(\pm\omega i\)</span></div>
+      <div class="cmp-row"><span class="cmp-key">Solución</span><span class="cmp-val">\(A\cos(\omega t{+}\Phi)\)</span></div>
+      <div class="cmp-row"><span class="cmp-key">Energía</span><span class="cmp-val">Conservada</span></div>
+      <div class="cmp-row"><span class="cmp-key">Comportamiento</span><span class="cmp-val">Oscila ∞</span></div>
+    </div>
+    <div class="cmp-col cmp-b">
+      <div class="cmp-head"><div class="cmp-num">I</div><span class="cmp-title">Subamort.</span></div>
+      <div class="cmp-row"><span class="cmp-key">Discriminante</span><span class="cmp-val">Δ &lt; 0</span></div>
+      <div class="cmp-row"><span class="cmp-key">Raíces r</span><span class="cmp-val">α ± βi</span></div>
+      <div class="cmp-row"><span class="cmp-key">Solución</span><span class="cmp-val">\(e^{\alpha t}[\cos{+}\sin]\)</span></div>
+      <div class="cmp-row"><span class="cmp-key">Energía</span><span class="cmp-val">Disipada lento</span></div>
+      <div class="cmp-row"><span class="cmp-key">Comportamiento</span><span class="cmp-val">Oscila + decae</span></div>
+    </div>
+    <div class="cmp-col cmp-g">
+      <div class="cmp-head"><div class="cmp-num">III</div><span class="cmp-title">Crítico</span></div>
+      <div class="cmp-row"><span class="cmp-key">Discriminante</span><span class="cmp-val">Δ = 0</span></div>
+      <div class="cmp-row"><span class="cmp-key">Raíces r</span><span class="cmp-val">\(r_1 = r_2\)</span></div>
+      <div class="cmp-row"><span class="cmp-key">Solución</span><span class="cmp-val">\((C_1{+}C_2 t)e^{rt}\)</span></div>
+      <div class="cmp-row"><span class="cmp-key">Energía</span><span class="cmp-val">Óptima</span></div>
+      <div class="cmp-row"><span class="cmp-key">Comportamiento</span><span class="cmp-val">Retorno óptimo</span></div>
+    </div>
+    <div class="cmp-col cmp-r">
+      <div class="cmp-head"><div class="cmp-num">II</div><span class="cmp-title">Sobreamt.</span></div>
+      <div class="cmp-row"><span class="cmp-key">Discriminante</span><span class="cmp-val">Δ &gt; 0</span></div>
+      <div class="cmp-row"><span class="cmp-key">Raíces r</span><span class="cmp-val">\(r_1 \neq r_2 < 0\)</span></div>
+      <div class="cmp-row"><span class="cmp-key">Solución</span><span class="cmp-val">\(C_1 e^{r_1 t}{+}C_2 e^{r_2 t}\)</span></div>
+      <div class="cmp-row"><span class="cmp-key">Energía</span><span class="cmp-val">Disipada rápido</span></div>
+      <div class="cmp-row"><span class="cmp-key">Comportamiento</span><span class="cmp-val">Retorno lento</span></div>
+    </div>
+  </div>
+  <div class="mini-row">
+    <div class="mini-box"><canvas id="cm0" height="72"></canvas><div class="mini-lbl" style="color:var(--violet)">MAS (β=0)</div></div>
+    <div class="mini-box"><canvas id="cm1" height="72"></canvas><div class="mini-lbl" style="color:var(--blue)">Sub (Δ&lt;0)</div></div>
+    <div class="mini-box"><canvas id="cm2" height="72"></canvas><div class="mini-lbl" style="color:var(--teal)">Crítico (Δ=0)</div></div>
+    <div class="mini-box"><canvas id="cm3" height="72"></canvas><div class="mini-lbl" style="color:var(--coral)">Sobre (Δ&gt;0)</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     S13 · ANIMACIONES FÍSICAS COMPARADAS
+══════════════════════════════════════════════ -->
+<div class="slide slide-pad" id="s13">
+  <div class="slide-label">03.2 — Los tres regímenes físicos en paralelo</div>
+  <h2 class="h2" style="margin-bottom:20px">Misma perturbación inicial, <em style="color:var(--gold)">tres destinos</em></h2>
+  <div class="spring-trio">
+    <div class="spring-case" style="border-color:rgba(79,156,248,.3);">
+      <div class="spring-case-lbl" style="color:var(--blue)">CASO I — SUBAMORTIGUADO (Δ &lt; 0)</div>
+      <canvas id="csp3_sub" width="260" height="250"></canvas>
+      <div class="anim-tick" id="tk3_sub" style="margin-top:5px;font-size:10px;color:var(--muted);">oscila con amplitud decreciente</div>
+    </div>
+    <div class="spring-case" style="border-color:rgba(53,212,160,.3);">
+      <div class="spring-case-lbl" style="color:var(--teal)">CASO III — CRÍTICO (Δ = 0)</div>
+      <canvas id="csp3_crit" width="260" height="250"></canvas>
+      <div class="anim-tick" id="tk3_crit" style="margin-top:5px;font-size:10px;color:var(--muted);">retorno más rápido sin oscilar</div>
+    </div>
+    <div class="spring-case" style="border-color:rgba(240,122,90,.3);">
+      <div class="spring-case-lbl" style="color:var(--coral)">CASO II — SOBREAMORTIGUADO (Δ &gt; 0)</div>
+      <canvas id="csp3_sobre" width="260" height="250"></canvas>
+      <div class="anim-tick" id="tk3_sobre" style="margin-top:5px;font-size:10px;color:var(--muted);">retorno monótono lento</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     S14 · CIERRE
+══════════════════════════════════════════════ -->
+<div class="slide sec-div" id="s14">
+  <div class="final-bg"></div>
+  <div class="final-content">
+    <div class="final-h2">El valor de <span class="mj-teal">\( \Delta = \lambda^2 - \omega^2 \)</span><br>define el destino<br>del sistema.</div>
+    <div class="sum-row">
+      <div class="sum-chip"><div class="chip-dot" style="background:var(--violet)"></div>β = 0 → oscila ∞ (MAS)</div>
+      <div class="sum-chip"><div class="chip-dot" style="background:var(--blue)"></div>Δ &lt; 0 → oscila + decae (Sub)</div>
+      <div class="sum-chip"><div class="chip-dot" style="background:var(--teal)"></div>Δ = 0 → retorno óptimo (Crítico)</div>
+      <div class="sum-chip"><div class="chip-dot" style="background:var(--coral)"></div>Δ &gt; 0 → retorno lento (Sobre)</div>
+    </div>
+    <div class="formula-box" style="text-align:center;font-family:var(--sans);font-size:14px;line-height:2.2;">
+      \( m\ddot{x} + \beta\dot{x} + kx = 0 \)<br>
+      <strong>\( r^2 + 2\lambda r + \omega^2 = 0 \)</strong><br>
+      \( r = -\lambda \pm \sqrt{\lambda^2 - \omega^2} \)<br>
+      <span style="color:var(--dim);font-size:11px">donde \(\lambda = \dfrac{\beta}{2m}\;\Big|\;\omega = \sqrt{\dfrac{k}{m}}\)</span>
+    </div>
+  </div>
+</div>
+
+</div><!-- /deck -->
+
+<!-- NAV -->
+<div class="nav">
+  <button onclick="goTo(cur-1)">← Anterior</button>
+  <span class="counter" id="counter">1 / 14</span>
+  <button onclick="goTo(cur+1)">Siguiente →</button>
+  <span class="section-label" id="secLabel">Portada</span>
+</div>
+<div class="dots" id="dots"></div>
+
+<script>
+/* ════ SLIDE ENGINE ════ */
+const slides = document.querySelectorAll('.slide');
+const total  = slides.length;
+let cur = 0;
+
+const secLabels = [
+  'Portada','MAS · Intro','MAS · Deducción física','MAS · Clasificación EDO',
+  'MAS · Solución completa','Amortiguado · Intro','Amort. · Deducción y DCL',
+  'Caso I · Subamortiguado','Caso II · Sobreamortiguado','Caso III · Crítico',
+  'Comparación · Intro','Comparación · Tabla','Comparación · Física','Cierre'
+];
+const sectionBreaks = [1, 5, 10];
+
+const dotsEl = document.getElementById('dots');
+slides.forEach((_,i) => {
+  const d = document.createElement('div');
+  d.className = 'dot' + (i===0?' active':'') + (sectionBreaks.includes(i)?' section-break':'');
+  d.onclick = () => goTo(i);
+  dotsEl.appendChild(d);
+});
+
+function goTo(n) {
+  if(n<0||n>=total) return;
+  slides[cur].classList.remove('active');
+  slides[cur].classList.add('out');
+  const prev=cur; cur=n;
+  setTimeout(()=>slides[prev].classList.remove('out'),500);
+  slides[cur].classList.add('active');
+  document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===cur));
+  document.getElementById('counter').textContent=(cur+1)+' / '+total;
+  document.getElementById('secLabel').textContent=secLabels[cur]||'';
+  // rebuild static graph caches (needed when canvas was hidden at load time)
+  const rebuildMap={
+    4:()=>buildMAS('cmas',110),
+    7:()=>buildStatic('ca_sub',  PR_SUB,   '#4f9cf8', 105),
+    8:()=>buildStatic('ca_sobre', PR_SOBRE, '#f07a5a', 105),
+    9:()=>buildStatic('ca_crit',  PR_CRIT,  '#35d4a0', 105),
+    11:()=>{ buildMAS('cm0',72); buildStatic('cm1',PR_SUB,'#4f9cf8',72); buildStatic('cm2',PR_CRIT,'#35d4a0',72); buildStatic('cm3',PR_SOBRE,'#f07a5a',72); }
+  };
+  if(rebuildMap[cur]) rebuildMap[cur]();
+  // restart relevant animations
+  const restartMap={2:'sp1',4:'mas',6:'sp2',7:'sub',8:'sobre',9:'crit',11:'cmp',12:'trio'};
+  if(restartMap[cur]) resetAnim(restartMap[cur]);
+  // re-render MathJax on new slide
+  if(window.MathJax && MathJax.typesetPromise) {
+    MathJax.typesetPromise([slides[cur]]).catch(err=>console.warn('MathJax:', err));
+  }
+}
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' ') goTo(cur+1);
+  if(e.key==='ArrowLeft') goTo(cur-1);
+});
+
+/* ════ PHYSICS ENGINE ════ */
+function computePR(m,beta,k,x0,v0){
+  const lambda=beta/(2*m), omega=Math.sqrt(k/m);
+  const disc=lambda*lambda - omega*omega;
+  let type,r1,r2,alpha,bfreq;
+  if(Math.abs(disc)<1e-6){
+    type='equal'; r1=r2=-lambda;
+  } else if(disc>0){
+    type='distinct'; r1=-lambda+Math.sqrt(disc); r2=-lambda-Math.sqrt(disc);
+  } else {
+    type='complex'; alpha=-lambda; bfreq=Math.sqrt(-disc);
+  }
+  return{m,beta,k,x0,v0,lambda,omega,disc,type,r1,r2,alpha,bfreq};
+}
+
+function xAt(t,pr){
+  const{type,r1,r2,alpha,bfreq,x0,v0}=pr;
+  if(type==='equal'){
+    const C1=x0, C2=v0-r1*x0;
+    return(C1+C2*t)*Math.exp(r1*t);
+  }
+  if(type==='distinct'){
+    const C1=(v0-r2*x0)/(r1-r2), C2=(r1*x0-v0)/(r1-r2);
+    return C1*Math.exp(r1*t)+C2*Math.exp(r2*t);
+  }
+  const C1=x0, C2=(v0-alpha*x0)/bfreq;
+  return Math.exp(alpha*t)*(C1*Math.cos(bfreq*t)+C2*Math.sin(bfreq*t));
+}
+
+function getTmax(pr){
+  if(pr.type==='complex') return Math.min(9*Math.PI/Math.abs(pr.bfreq),24);
+  if(pr.type==='distinct') return Math.min(15/Math.abs(pr.r2),24);
+  return Math.min(15/Math.abs(pr.r1),24);
+}
+
+/* Physics params for the three cases */
+const PR_SUB   = computePR(300, 1200, 20000, 0.3, 0);   // subamortiguado
+const PR_SOBRE = computePR(1, 10, 9, 1, 0);              // sobreamortiguado
+const PR_CRIT  = computePR(1, 6, 9, 1, 0);              // crítico
+
+/* ════ GRAPH CACHE ════ */
+const gCache={};
+
+function rr(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);
+  ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath();
+}
+
+function buildStatic(id, pr, color, H){
+  const cv=document.getElementById(id); if(!cv)return;
+  const dpr=window.devicePixelRatio||1;
+  const W=cv.parentElement.offsetWidth-24;
+  cv.width=W*dpr; cv.height=H*dpr; cv.style.width=W+'px'; cv.style.height=H+'px';
+  const tmax=getTmax(pr);
+  const padL=36,padR=12,padT=11,padB=20,pW=W-padL-padR,pH=H-padT-padB;
+  const N=600; let ymax=1e-10; const pts=[];
+  for(let i=0;i<=N;i++){const t=(i/N)*tmax, y=xAt(t,pr); pts.push([t,y]); if(Math.abs(y)>ymax)ymax=Math.abs(y);}
+  const off=document.createElement('canvas'); off.width=W*dpr; off.height=H*dpr;
+  const ctx=off.getContext('2d'); ctx.scale(dpr,dpr);
+  const tx=t=>padL+(t/tmax)*pW, ty=y=>padT+pH/2-(y/ymax)*(pH*.44);
+  ctx.fillStyle='#0f1219'; rr(ctx,padL,padT,pW,pH,5); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.04)'; ctx.lineWidth=1;
+  for(let i=0;i<=3;i++){const yg=-ymax+i*(2*ymax/3);ctx.beginPath();ctx.moveTo(padL,ty(yg));ctx.lineTo(padL+pW,ty(yg));ctx.stroke();}
+  for(let i=0;i<=5;i++){const xg=padL+i*(pW/5);ctx.beginPath();ctx.moveTo(xg,padT);ctx.lineTo(xg,padT+pH);ctx.stroke();}
+  ctx.strokeStyle='rgba(255,255,255,.1)'; ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(padL,ty(0));ctx.lineTo(padL+pW,ty(0));ctx.stroke();
+  ctx.beginPath();ctx.moveTo(padL,padT);ctx.lineTo(padL,padT+pH);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.25)'; ctx.font='9px JetBrains Mono,monospace';
+  ctx.textAlign='right';
+  ctx.fillText(ymax.toFixed(2),padL-3,padT+pH*.05+3);
+  ctx.fillText('0',padL-3,ty(0)+3);
+  ctx.fillText((-ymax).toFixed(2),padL-3,padT+pH*.95+3);
+  ctx.textAlign='center';
+  ctx.fillText('0',padL,padT+pH+13);
+  ctx.fillText(tmax.toFixed(1)+'s',padL+pW,padT+pH+13);
+  // envelope for complex
+  if(pr.type==='complex'){
+    ctx.strokeStyle=color+'40'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+    const envPts=[]; for(let i=0;i<=N;i++){const t=(i/N)*tmax; envPts.push([tx(t), ty(ymax*Math.exp(pr.alpha*t))]);}
+    ctx.beginPath(); envPts.forEach(([ex,ey],i)=>i===0?ctx.moveTo(ex,ey):ctx.lineTo(ex,ey)); ctx.stroke();
+    ctx.beginPath(); envPts.forEach(([ex,ey],i)=>i===0?ctx.moveTo(ex,2*(padT+pH/2)-ey):ctx.lineTo(ex,2*(padT+pH/2)-ey)); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.save(); rr(ctx,padL,padT,pW,pH,5); ctx.clip();
+  ctx.strokeStyle=color+'35'; ctx.lineWidth=1; ctx.beginPath();
+  for(let i=0;i<=N;i++){const[t,y]=pts[i];i===0?ctx.moveTo(tx(t),ty(y)):ctx.lineTo(tx(t),ty(y));} ctx.stroke();
+  ctx.strokeStyle=color; ctx.lineWidth=2; ctx.lineJoin='round'; ctx.beginPath();
+  for(let i=0;i<=N;i++){const[t,y]=pts[i];i===0?ctx.moveTo(tx(t),ty(y)):ctx.lineTo(tx(t),ty(y));} ctx.stroke();
+  ctx.restore();
+  gCache[id]={off,W,H,dpr,padL,padT,pW,pH,tmax,ymax,color,pr,tx,ty};
+}
+
+function drawDot(id,elapsed,ticker){
+  const sc=gCache[id]; if(!sc)return;
+  const{off,dpr,padL,padT,pW,pH,tmax,ymax,color,pr,tx,ty}=sc;
+  const cv=document.getElementById(id); if(!cv)return;
+  const ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height); ctx.drawImage(off,0,0);
+  const curT=elapsed%tmax, curY=xAt(curT,pr);
+  const cx_=tx(curT), cy_=ty(curY);
+  ctx.save(); ctx.scale(dpr,dpr);
+  ctx.strokeStyle=color+'55'; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+  ctx.beginPath();ctx.moveTo(cx_,padT);ctx.lineTo(cx_,padT+pH);ctx.stroke();ctx.setLineDash([]);
+  ctx.shadowColor=color; ctx.shadowBlur=8;
+  ctx.beginPath();ctx.arc(cx_,cy_,4.5,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+  ctx.shadowBlur=0; ctx.restore();
+  if(ticker) document.getElementById(ticker).textContent='t = '+curT.toFixed(2)+' s  |  x = '+curY.toFixed(4);
+}
+
+/* MAS static graph */
+function buildMAS(id, H){
+  const cv=document.getElementById(id); if(!cv)return;
+  const dpr=window.devicePixelRatio||1;
+  const W=cv.parentElement.offsetWidth-24;
+  cv.width=W*dpr; cv.height=H*dpr; cv.style.width=W+'px'; cv.style.height=H+'px';
+  const tmax=8*Math.PI/3, padL=36,padR=12,padT=11,padB=20,pW=W-padL-padR,pH=H-padT-padB;
+  const N=500; const pts=[];
+  for(let i=0;i<=N;i++){const t=(i/N)*tmax; pts.push([t,Math.cos(3*t)]);}
+  const ymax=1;
+  const off=document.createElement('canvas'); off.width=W*dpr; off.height=H*dpr;
+  const ctx=off.getContext('2d'); ctx.scale(dpr,dpr);
+  const tx=t=>padL+(t/tmax)*pW, ty=y=>padT+pH/2-(y/ymax)*(pH*.44);
+  ctx.fillStyle='#0f1219'; rr(ctx,padL,padT,pW,pH,5); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.04)'; ctx.lineWidth=1;
+  for(let i=0;i<=3;i++){const yg=-1+i*(2/3);ctx.beginPath();ctx.moveTo(padL,ty(yg));ctx.lineTo(padL+pW,ty(yg));ctx.stroke();}
+  for(let i=0;i<=5;i++){const xg=padL+i*(pW/5);ctx.beginPath();ctx.moveTo(xg,padT);ctx.lineTo(xg,padT+pH);ctx.stroke();}
+  ctx.strokeStyle='rgba(255,255,255,.1)'; ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(padL,ty(0));ctx.lineTo(padL+pW,ty(0));ctx.stroke();
+  ctx.beginPath();ctx.moveTo(padL,padT);ctx.lineTo(padL,padT+pH);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.25)'; ctx.font='9px JetBrains Mono,monospace';
+  ctx.textAlign='right'; ctx.fillText('1.00',padL-3,padT+pH*.05+3); ctx.fillText('0',padL-3,ty(0)+3); ctx.fillText('-1.00',padL-3,padT+pH*.95+3);
+  ctx.textAlign='center'; ctx.fillText('0',padL,padT+pH+13); ctx.fillText(tmax.toFixed(1)+'s',padL+pW,padT+pH+13);
+  ctx.strokeStyle='rgba(176,127,255,.3)'; ctx.lineWidth=1; ctx.setLineDash([5,5]);
+  ctx.beginPath();ctx.moveTo(padL,ty(1));ctx.lineTo(padL+pW,ty(1));ctx.stroke();
+  ctx.beginPath();ctx.moveTo(padL,ty(-1));ctx.lineTo(padL+pW,ty(-1));ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.save(); rr(ctx,padL,padT,pW,pH,5); ctx.clip();
+  ctx.strokeStyle='#b07fff35'; ctx.lineWidth=1; ctx.beginPath();
+  for(let i=0;i<=N;i++){const[t,y]=pts[i];i===0?ctx.moveTo(tx(t),ty(y)):ctx.lineTo(tx(t),ty(y));} ctx.stroke();
+  ctx.strokeStyle='#b07fff'; ctx.lineWidth=2; ctx.lineJoin='round'; ctx.beginPath();
+  for(let i=0;i<=N;i++){const[t,y]=pts[i];i===0?ctx.moveTo(tx(t),ty(y)):ctx.lineTo(tx(t),ty(y));} ctx.stroke();
+  ctx.restore();
+  gCache[id]={off,W,H,dpr,padL,padT,pW,pH,tmax,ymax:1,color:'#b07fff',pr:null,tx,ty,isMAS:true};
+}
+
+function drawDotMAS(id,elapsed,ticker){
+  const sc=gCache[id]; if(!sc)return;
+  const{off,dpr,padL,padT,pW,pH,tmax,color,tx,ty}=sc;
+  const cv=document.getElementById(id); if(!cv)return;
+  const ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height); ctx.drawImage(off,0,0);
+  const curT=elapsed%tmax, curY=Math.cos(3*curT);
+  const cx_=tx(curT), cy_=ty(curY);
+  ctx.save(); ctx.scale(dpr,dpr);
+  ctx.strokeStyle=color+'55'; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+  ctx.beginPath();ctx.moveTo(cx_,padT);ctx.lineTo(cx_,padT+pH);ctx.stroke();ctx.setLineDash([]);
+  ctx.shadowColor=color; ctx.shadowBlur=8;
+  ctx.beginPath();ctx.arc(cx_,cy_,4.5,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+  ctx.shadowBlur=0; ctx.restore();
+  if(ticker) document.getElementById(ticker).textContent='t = '+curT.toFixed(2)+' s  |  x = '+curY.toFixed(4);
+}
+
+/* ════ ANIM LOOPS ════ */
+const anims={};
+function startLoop(key,fn){
+  if(anims[key]) cancelAnimationFrame(anims[key].raf);
+  anims[key]={elapsed:0,ts:null};
+  function loop(ts){
+    if(!anims[key].ts) anims[key].ts=ts;
+    anims[key].elapsed=(ts-anims[key].ts)/1000;
+    fn(anims[key].elapsed);
+    anims[key].raf=requestAnimationFrame(loop);
+  }
+  anims[key].raf=requestAnimationFrame(loop);
+}
+function resetAnim(key){
+  if(anims[key]){anims[key].elapsed=0;anims[key].ts=null;}
+}
+
+/* ════ SPRING DRAWING FUNCTIONS ════ */
+
+function drawSpring(ctx, cx, sX, springTop, springBot, nCoils, coilW, color){
+  const segH=(springBot-springTop)/nCoils;
+  ctx.strokeStyle=color; ctx.lineWidth=2.5; ctx.lineJoin='round';
+  ctx.beginPath(); ctx.moveTo(sX,springTop);
+  for(let i=0;i<nCoils;i++){
+    const y0=springTop+i*segH, y1=y0+segH;
+    ctx.lineTo(sX+(i%2===0?coilW:-coilW), y0+segH*.5);
+    ctx.lineTo(sX,y1);
+  }
+  ctx.stroke();
+}
+
+function drawDamper(ctx, dX, springTop, massY, color){
+  const boxH=36, boxW=26;
+  const midY=(springTop+massY)/2 - boxH/2;
+  // top rod
+  ctx.strokeStyle=color; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.moveTo(dX,springTop); ctx.lineTo(dX,midY); ctx.stroke();
+  // box
+  ctx.fillStyle=color+'12'; ctx.strokeStyle=color; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(dX-boxW/2,midY,boxW,boxH,3); ctx.fill(); ctx.stroke();
+  // piston line inside box
+  ctx.strokeStyle=color; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.moveTo(dX-boxW/2+4,midY+boxH/2); ctx.lineTo(dX+boxW/2-4,midY+boxH/2); ctx.stroke();
+  // bottom rod
+  ctx.beginPath(); ctx.moveTo(dX,midY+boxH); ctx.lineTo(dX,massY); ctx.stroke();
+}
+
+function drawCeiling(ctx, cx, top, halfW, color){
+  ctx.fillStyle='#2a2f3d'; ctx.fillRect(cx-halfW,top,halfW*2,10);
+  ctx.strokeStyle='#3a3e4a'; ctx.lineWidth=1.5;
+  for(let x=cx-halfW;x<cx+halfW;x+=22){ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x-10,top+12);ctx.stroke();}
+}
+
+function drawMass(ctx, cx, massY, massW, massH, label, color){
+  ctx.fillStyle=color+'18'; ctx.strokeStyle=color; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(cx-massW/2,massY,massW,massH,6); ctx.fill(); ctx.stroke();
+  ctx.fillStyle=color; ctx.font='bold 14px JetBrains Mono,monospace'; ctx.textAlign='center';
+  ctx.fillText(label, cx, massY+massH/2+5);
+}
+
+/* ── Spring 1: MAS horizontal (pared izquierda) ── */
+function drawSpring1(cv, t){
+  if(!cv)return;
+  const W=cv.width, H=cv.height;
+  const ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  const cy=H/2, wallX=18, massW=54, massH=54;
+  const omega=3, amp=55;
+  // equilibrium position of left edge of mass
+  const eqX = W*0.55;
+  const massX = eqX + amp*Math.sin(omega*t);
+  // wall (vertical hatched)
+  ctx.fillStyle='#2a2f3d'; ctx.fillRect(wallX,cy-90,10,180);
+  ctx.strokeStyle='#3a3e4a'; ctx.lineWidth=1.5;
+  for(let y=cy-90; y<cy+90; y+=20){ctx.beginPath();ctx.moveTo(wallX+10,y);ctx.lineTo(wallX+22,y-12);ctx.stroke();}
+  // spring horizontal
+  const sTop=wallX+10, sBot=massX;
+  const nCoils=8, coilH=10;
+  const segW=(sBot-sTop)/nCoils;
+  ctx.strokeStyle='#b07fff'; ctx.lineWidth=2.5; ctx.lineJoin='round';
+  ctx.beginPath(); ctx.moveTo(sTop,cy);
+  for(let i=0;i<nCoils;i++){
+    const x0=sTop+i*segW, x1=x0+segW;
+    ctx.lineTo(x0+segW*0.5, cy+(i%2===0?coilH:-coilH));
+    ctx.lineTo(x1,cy);
+  }
+  ctx.stroke();
+  // label k
+  ctx.fillStyle='#b07fff'; ctx.font='bold 13px JetBrains Mono,monospace'; ctx.textAlign='center';
+  ctx.fillText('k',(sTop+sBot)/2, cy-coilH-6);
+  // mass block
+  ctx.fillStyle='rgba(176,127,255,.15)'; ctx.strokeStyle='#b07fff'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(massX, cy-massH/2, massW, massH, 6); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#b07fff'; ctx.font='bold 14px JetBrains Mono,monospace'; ctx.textAlign='center';
+  ctx.fillText('m', massX+massW/2, cy+5);
+  // equilibrium dashed line
+  ctx.strokeStyle='rgba(255,255,255,.15)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(eqX+massW/2,cy-massH/2-10); ctx.lineTo(eqX+massW/2,cy+massH/2+10); ctx.stroke();
+  ctx.setLineDash([]);
+  // x arrow (horizontal)
+  const disp = massX - eqX;
+  if(Math.abs(disp)>2){
+    const arY = cy+massH/2+14;
+    const dir = disp>0?1:-1;
+    ctx.strokeStyle='#e8c96a'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(eqX+massW/2, arY); ctx.lineTo(massX+massW/2, arY); ctx.stroke();
+    ctx.fillStyle='#e8c96a'; ctx.beginPath();
+    ctx.moveTo(massX+massW/2+dir*4, arY);
+    ctx.lineTo(massX+massW/2-dir*4, arY-4);
+    ctx.lineTo(massX+massW/2-dir*4, arY+4);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#e8c96a'; ctx.font='11px JetBrains Mono,monospace'; ctx.textAlign='center';
+    ctx.fillText('x', (eqX+massW/2+massX+massW/2)/2, arY+12);
+  }
+  if(document.getElementById('tksp1')) document.getElementById('tksp1').textContent='t = '+(t%20).toFixed(2)+' s';
+}
+
+/* ── Generic spring+damper HORIZONTAL (pared izquierda) ── */
+function drawSpringDamper(cv, t, pr, springColor, damperColor, massColor, ticker){
+  if(!cv)return;
+  const W=cv.width, H=cv.height;
+  const ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  const wallX=14, massW=52, massH=52;
+  const tmax=getTmax(pr);
+  const curT=t%tmax;
+  const xPhys=xAt(curT,pr);
+  const xmax=Math.abs(pr.x0)*1.2||1;
+  const pixDisp=(xPhys/xmax)*55;
+  const eqX=W*0.56;
+  const massX=eqX+pixDisp;
+  // spring lane y and damper lane y
+  const sY=H*0.34, dY=H*0.68;
+  // wall
+  ctx.fillStyle='#2a2f3d'; ctx.fillRect(wallX,sY-70,10,H*0.75);
+  ctx.strokeStyle='#3a3e4a'; ctx.lineWidth=1.5;
+  for(let y=sY-70;y<sY+H*0.75-70;y+=20){ctx.beginPath();ctx.moveTo(wallX+10,y);ctx.lineTo(wallX+22,y-12);ctx.stroke();}
+  // equilibrium dashed vertical line
+  ctx.strokeStyle='rgba(255,255,255,.13)'; ctx.lineWidth=1; ctx.setLineDash([4,5]);
+  ctx.beginPath();ctx.moveTo(eqX+massW/2, sY-60);ctx.lineTo(eqX+massW/2, dY+60);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,255,255,.2)'; ctx.font='9px JetBrains Mono,monospace'; ctx.textAlign='center';
+  ctx.fillText('x=0', eqX+massW/2, sY-65);
+  // spring (top lane)
+  function drawHorizSpring(y, fromX, toX, color, nCoils, coilH){
+    const segW=(toX-fromX)/nCoils;
+    ctx.strokeStyle=color; ctx.lineWidth=2.5; ctx.lineJoin='round';
+    ctx.beginPath(); ctx.moveTo(fromX,y);
+    for(let i=0;i<nCoils;i++){
+      const x0=fromX+i*segW;
+      ctx.lineTo(x0+segW*0.5, y+(i%2===0?coilH:-coilH));
+      ctx.lineTo(x0+segW, y);
+    }
+    ctx.stroke();
+  }
+  function drawHorizDamper(y, fromX, toX, color){
+    const boxW=30, boxH=20;
+    const midX=(fromX+toX)/2 - boxW/2;
+    ctx.strokeStyle=color; ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.moveTo(fromX,y);ctx.lineTo(midX,y);ctx.stroke();
+    ctx.fillStyle=color+'12'; ctx.strokeStyle=color; ctx.lineWidth=2;
+    ctx.beginPath();ctx.roundRect(midX,y-boxH/2,boxW,boxH,3);ctx.fill();ctx.stroke();
+    ctx.strokeStyle=color; ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.moveTo(midX+boxW*0.25,y);ctx.lineTo(midX+boxW*0.75,y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(midX+boxW,y);ctx.lineTo(toX,y);ctx.stroke();
+  }
+  // connect wall attachment to mass left edge
+  drawHorizSpring(sY, wallX+10, massX, springColor, 8, 9);
+  ctx.fillStyle=springColor; ctx.font='bold 12px JetBrains Mono,monospace'; ctx.textAlign='center';
+  ctx.fillText('k',(wallX+10+massX)/2, sY-14);
+  drawHorizDamper(dY, wallX+10, massX, damperColor);
+  ctx.fillStyle=damperColor; ctx.font='bold 12px JetBrains Mono,monospace'; ctx.textAlign='center';
+  ctx.fillText('β',(wallX+10+massX)/2, dY+18);
+  // connecting rods from spring/damper to mass
+  ctx.strokeStyle=springColor+'60'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+  ctx.beginPath();ctx.moveTo(massX,sY);ctx.lineTo(massX,H*0.5-massH/2);ctx.stroke();
+  ctx.strokeStyle=damperColor+'60';
+  ctx.beginPath();ctx.moveTo(massX,dY);ctx.lineTo(massX,H*0.5+massH/2);ctx.stroke();
+  ctx.setLineDash([]);
+  // mass block centered vertically
+  const mY=H/2-massH/2;
+  ctx.fillStyle=massColor+'18'; ctx.strokeStyle=massColor; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(massX,mY,massW,massH,6); ctx.fill(); ctx.stroke();
+  ctx.fillStyle=massColor; ctx.font='bold 14px JetBrains Mono,monospace'; ctx.textAlign='center';
+  ctx.fillText('m', massX+massW/2, mY+massH/2+5);
+  // displacement arrow
+  if(Math.abs(pixDisp)>2){
+    const arY=mY+massH+14;
+    const dir=pixDisp>0?1:-1;
+    ctx.strokeStyle='#e8c96a'; ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(eqX+massW/2,arY);ctx.lineTo(massX+massW/2,arY);ctx.stroke();
+    ctx.fillStyle='#e8c96a'; ctx.beginPath();
+    ctx.moveTo(massX+massW/2+dir*4,arY);
+    ctx.lineTo(massX+massW/2-dir*4,arY-4);
+    ctx.lineTo(massX+massW/2-dir*4,arY+4);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#e8c96a'; ctx.font='11px JetBrains Mono,monospace'; ctx.textAlign='center';
+    ctx.fillText('x',(eqX+massW/2+massX+massW/2)/2,arY+12);
+  }
+  if(ticker) document.getElementById(ticker).textContent='t='+curT.toFixed(2)+'s  x='+xPhys.toFixed(3);
+}
+
+/* ── Small spring+damper HORIZONTAL trio ── */
+function drawSpringDamperSmall(cv, t, pr, springColor, damperColor, massColor, ticker){
+  if(!cv)return;
+  const W=cv.width, H=cv.height;
+  const ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  const wallX=10, massW=44, massH=44;
+  const tmax=getTmax(pr);
+  const curT=t%tmax;
+  const xPhys=xAt(curT,pr);
+  const xmax=Math.abs(pr.x0)*1.2||1;
+  const pixDisp=(xPhys/xmax)*46;
+  const eqX=W*0.55;
+  const massX=eqX+pixDisp;
+  const sY=H*0.32, dY=H*0.70;
+  // wall
+  ctx.fillStyle='#2a2f3d'; ctx.fillRect(wallX,sY-50,9,H*0.68);
+  ctx.strokeStyle='#3a3e4a'; ctx.lineWidth=1.2;
+  for(let y=sY-50;y<sY+H*0.68-50;y+=18){ctx.beginPath();ctx.moveTo(wallX+9,y);ctx.lineTo(wallX+19,y-10);ctx.stroke();}
+  // eq line
+  ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+  ctx.beginPath();ctx.moveTo(eqX+massW/2,sY-45);ctx.lineTo(eqX+massW/2,dY+45);ctx.stroke();
+  ctx.setLineDash([]);
+  // spring
+  function hs(y,fx,tx2,c,n,ch){
+    const sw=(tx2-fx)/n; ctx.strokeStyle=c; ctx.lineWidth=2; ctx.lineJoin='round';
+    ctx.beginPath();ctx.moveTo(fx,y);
+    for(let i=0;i<n;i++){const x0=fx+i*sw;ctx.lineTo(x0+sw*.5,y+(i%2===0?ch:-ch));ctx.lineTo(x0+sw,y);}
+    ctx.stroke();
+  }
+  function hd(y,fx,tx2,c){
+    const bw=24,bh=16,mx=(fx+tx2)/2-bw/2;
+    ctx.strokeStyle=c;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(fx,y);ctx.lineTo(mx,y);ctx.stroke();
+    ctx.fillStyle=c+'12';ctx.strokeStyle=c;ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(mx,y-bh/2,bw,bh,2);ctx.fill();ctx.stroke();
+    ctx.strokeStyle=c;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(mx+bw*.25,y);ctx.lineTo(mx+bw*.75,y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(mx+bw,y);ctx.lineTo(tx2,y);ctx.stroke();
+  }
+  hs(sY,wallX+9,massX,springColor,7,7);
+  ctx.fillStyle=springColor;ctx.font='bold 10px JetBrains Mono,monospace';ctx.textAlign='center';
+  ctx.fillText('k',(wallX+9+massX)/2,sY-10);
+  hd(dY,wallX+9,massX,damperColor);
+  ctx.fillStyle=damperColor;ctx.font='bold 10px JetBrains Mono,monospace';ctx.textAlign='center';
+  ctx.fillText('β',(wallX+9+massX)/2,dY+14);
+  // connecting rods
+  ctx.strokeStyle=springColor+'50';ctx.lineWidth=1;ctx.setLineDash([2,3]);
+  ctx.beginPath();ctx.moveTo(massX,sY);ctx.lineTo(massX,H/2-massH/2);ctx.stroke();
+  ctx.strokeStyle=damperColor+'50';
+  ctx.beginPath();ctx.moveTo(massX,dY);ctx.lineTo(massX,H/2+massH/2);ctx.stroke();
+  ctx.setLineDash([]);
+  // mass
+  const mY=H/2-massH/2;
+  ctx.fillStyle=massColor+'18';ctx.strokeStyle=massColor;ctx.lineWidth=2;
+  ctx.beginPath();ctx.roundRect(massX,mY,massW,massH,5);ctx.fill();ctx.stroke();
+  ctx.fillStyle=massColor;ctx.font='bold 12px JetBrains Mono,monospace';ctx.textAlign='center';
+  ctx.fillText('m',massX+massW/2,mY+massH/2+4);
+  if(ticker) document.getElementById(ticker).textContent='t='+curT.toFixed(2)+'s  x='+xPhys.toFixed(3);
+}
+
+/* ════ DCL DRAWING FUNCTIONS ════ */
+
+function drawDCL_MAS(cv, t){
+  // Reutiliza drawSpring1 para mostrar el sistema animado en la slide DCL
+  drawSpring1(cv, t);
+}
+
+function drawDCL_Amort(cv, t){
+  drawSpringDamper(cv, t, PR_SUB, '#4f9cf8','#f07a5a','#35d4a0', null);
+}
+
+/* ════ INIT ════ */
+window.addEventListener('load',()=>{
+  // Set canvas physical dimensions
+  const initCanvas=(id,w,h)=>{
+    const cv=document.getElementById(id);
+    if(cv){cv.width=w;cv.height=h;}
+  };
+  initCanvas('cspring1',340,290);
+  initCanvas('cspring2',340,290);
+  initCanvas('csp_sub',300,260);
+  initCanvas('csp_sobre',300,260);
+  initCanvas('csp_crit',300,260);
+  initCanvas('csp3_sub',260,250);
+  initCanvas('csp3_sobre',260,250);
+  initCanvas('csp3_crit',260,250);
+  // cdcl_mas usa canvas con height por atributo HTML
+
+  // Build static graphs
+  buildMAS('cmas',110);
+  buildStatic('ca_sub',  PR_SUB,   '#4f9cf8', 105);
+  buildStatic('ca_sobre', PR_SOBRE, '#f07a5a', 105);
+  buildStatic('ca_crit',  PR_CRIT,  '#35d4a0', 105);
+  buildMAS('cm0',72);
+  buildStatic('cm1', PR_SUB,   '#4f9cf8', 72);
+  buildStatic('cm2', PR_CRIT,  '#35d4a0', 72);
+  buildStatic('cm3', PR_SOBRE, '#f07a5a', 72);
+
+  /* ANIMATION LOOPS */
+
+  // Slide 3 (index 2): MAS spring
+  startLoop('sp1', e=>{
+    if(cur===2) drawSpring1(document.getElementById('cspring1'), e);
+  });
+
+  // Slide 5 (index 4): MAS graph
+  startLoop('mas', e=>{
+    if(cur===4) drawDotMAS('cmas', e, 'tkmas');
+  });
+
+  // Slide 7 (index 6): spring+damper (subamortiguado preview)
+  startLoop('sp2', e=>{
+    if(cur===6) drawSpringDamper(
+      document.getElementById('cspring2'), e, PR_SUB,
+      '#4f9cf8','#f07a5a','#35d4a0', null
+    );
+  });
+
+  // Slide 8 (index 7): subamortiguado graph + physical spring
+  startLoop('sub', e=>{
+    if(cur===7){
+      drawDot('ca_sub', e, 'tk_sub');
+      drawSpringDamper(
+        document.getElementById('csp_sub'), e, PR_SUB,
+        '#4f9cf8','#4f9cf8','#4f9cf8', null
+      );
+    }
+  });
+
+  // Slide 9 (index 8): sobreamortiguado
+  startLoop('sobre', e=>{
+    if(cur===8){
+      drawDot('ca_sobre', e, 'tk_sobre');
+      drawSpringDamper(
+        document.getElementById('csp_sobre'), e, PR_SOBRE,
+        '#f07a5a','#f07a5a','#f07a5a', null
+      );
+    }
+  });
+
+  // Slide 10 (index 9): crítico
+  startLoop('crit', e=>{
+    if(cur===9){
+      drawDot('ca_crit', e, 'tk_crit');
+      drawSpringDamper(
+        document.getElementById('csp_crit'), e, PR_CRIT,
+        '#35d4a0','#35d4a0','#35d4a0', null
+      );
+    }
+  });
+
+  // Slide 12 (index 11): comparison mini graphs
+  startLoop('cmp', e=>{
+    if(cur===11){
+      drawDotMAS('cm0',e,null);
+      drawDot('cm1',e,null);
+      drawDot('cm2',e,null);
+      drawDot('cm3',e,null);
+    }
+  });
+
+  // Slide 13 (index 12): physical comparison trio
+  startLoop('trio', e=>{
+    if(cur===12){
+      drawSpringDamperSmall(document.getElementById('csp3_sub'),   e, PR_SUB,   '#4f9cf8','#4f9cf8','#4f9cf8','tk3_sub');
+      drawSpringDamperSmall(document.getElementById('csp3_crit'),  e, PR_CRIT,  '#35d4a0','#35d4a0','#35d4a0','tk3_crit');
+      drawSpringDamperSmall(document.getElementById('csp3_sobre'), e, PR_SOBRE, '#f07a5a','#f07a5a','#f07a5a','tk3_sobre');
+    }
+  });
+
+  // DCL MAS (slide 3 → index 2)
+  startLoop('dcl_mas', e=>{
+    if(cur===2) drawDCL_MAS(document.getElementById('cdcl_mas'), e);
+  });
+});
+
+window.addEventListener('resize',()=>{
+  buildMAS('cmas',110);
+  buildStatic('ca_sub',  PR_SUB,   '#4f9cf8', 105);
+  buildStatic('ca_sobre', PR_SOBRE, '#f07a5a', 105);
+  buildStatic('ca_crit',  PR_CRIT,  '#35d4a0', 105);
+  buildMAS('cm0',72);
+  buildStatic('cm1', PR_SUB,   '#4f9cf8', 72);
+  buildStatic('cm2', PR_CRIT,  '#35d4a0', 72);
+  buildStatic('cm3', PR_SOBRE, '#f07a5a', 72);
+});
+</script>
+</body>
+</html>
